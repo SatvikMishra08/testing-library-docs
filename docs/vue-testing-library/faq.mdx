@@ -83,20 +83,22 @@ expect(queryByText('submit')).not.toBeInTheDocument()
 <details>
   <summary>Why does my Vue Router state seem to be shared between tests?</summary>
 
-Vue Router 4 no longer has a `mode` option. A router is created with a
-history implementation, and the ones most apps use
-([`createWebHistory`](https://router.vuejs.org/api/functions/createwebhistory)
+The history implementations most apps use,
+[`createWebHistory`](https://router.vuejs.org/api/functions/createWebHistory.html)
 and
-[`createWebHashHistory`](https://router.vuejs.org/api/functions/createwebhashhistory))
-write the current URL to `window.location`. Test runners such as Jest do not
-reset the JSDOM window between tests, so a navigation in one test can leak into
-the next even when each test builds its own router.
+[`createWebHashHistory`](https://router.vuejs.org/api/functions/createWebHashHistory.html),
+store the current URL in `window.location`. Test runners such as Jest and Vitest
+do not reset the JSDOM window between tests, so a navigation in one test leaks
+into the next, even when each test creates its own router.
 
-Use
-[`createMemoryHistory`](https://router.vuejs.org/guide/essentials/history-mode.html#Memory-mode)
-instead. It keeps the history stack in memory and does not touch
-`window.location`. Current Vue Testing Library also dropped the `routes` render
-option, so install that router through `global.plugins`:
+In tests, use
+[`createMemoryHistory`](https://router.vuejs.org/api/functions/createMemoryHistory.html)
+instead. It keeps the history stack in memory and never touches
+`window.location`, so nothing is shared between tests.
+
+Vue Router navigates asynchronously, and a freshly created router has not
+navigated anywhere yet. Navigate to the route under test and wait for that
+navigation to finish before rendering, so the component mounts on that route:
 
 ```js
 import {render} from '@testing-library/vue'
@@ -111,10 +113,8 @@ test('isolates router state with memory history', async () => {
     ],
   })
 
-  // Memory history starts at a location that is not one of your routes.
-  // Navigate first, and wait until that navigation finishes, before rendering.
+  // Awaiting push waits for the navigation to finish.
   await router.push('/')
-  await router.isReady()
 
   render(Component, {
     global: {
@@ -142,7 +142,6 @@ export async function renderApp(component, options = {}) {
   })
 
   await router.push('/')
-  await router.isReady()
 
   return render(component, {
     ...options,
